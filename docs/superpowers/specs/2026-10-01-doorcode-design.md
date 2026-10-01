@@ -25,7 +25,7 @@ fetch their code at any time. The project will be open source.
 
 ### 1. Service (`service/`)
 
-Plain Node (built-in `node:http` or Hono, no heavy framework), one process,
+Plain Node using the built-in `node:http` module (no web framework), one process,
 SQLite file for state. Listens on localhost; nginx on the Droplet provides
 HTTPS and proxies to it.
 
