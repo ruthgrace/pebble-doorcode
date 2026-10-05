@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractCode, findUserChannel } from "../src/match.js";
+import { extractCode, findUserChannel, channelGrantsUser } from "../src/match.js";
 
 const VIEW = String(1 << 10);
 
@@ -59,4 +59,37 @@ test("findUserChannel reports multiple when more than one door channel matches",
 
 test("findUserChannel tolerates channels with no permission_overwrites", () => {
   assert.deepEqual(findUserChannel([{ id: "x", name: "🚪: 9" }], "u1"), { error: "none" });
+});
+
+const grantCh = (over = {}) => ({
+  name: "🚪: 1",
+  permission_overwrites: [{ id: "u1", type: 1, allow: VIEW, deny: "0" }],
+  ...over,
+});
+
+test("channelGrantsUser is true for a matching member overwrite", () => {
+  assert.equal(channelGrantsUser(grantCh(), "u1"), true);
+});
+
+test("channelGrantsUser is true when type is the string member", () => {
+  const c = grantCh({ permission_overwrites: [{ id: "u1", type: "member", allow: VIEW }] });
+  assert.equal(channelGrantsUser(c, "u1"), true);
+});
+
+test("channelGrantsUser is false when the overwrite is for another user", () => {
+  assert.equal(channelGrantsUser(grantCh(), "u2"), false);
+});
+
+test("channelGrantsUser is false for a role overwrite", () => {
+  const c = grantCh({ permission_overwrites: [{ id: "u1", type: 0, allow: VIEW }] });
+  assert.equal(channelGrantsUser(c, "u1"), false);
+});
+
+test("channelGrantsUser is false when the name lacks the prefix", () => {
+  assert.equal(channelGrantsUser(grantCh({ name: "general" }), "u1"), false);
+});
+
+test("channelGrantsUser is false with no overwrites", () => {
+  assert.equal(channelGrantsUser(grantCh({ permission_overwrites: [] }), "u1"), false);
+  assert.equal(channelGrantsUser({ name: "🚪: 1" }, "u1"), false);
 });

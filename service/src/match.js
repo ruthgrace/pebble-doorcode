@@ -19,13 +19,16 @@ function overwriteGrantsView(o, userId) {
   return (allow & VIEW_CHANNEL) !== 0n;
 }
 
-export function findUserChannel(channels, userId) {
-  const matches = channels.filter(
-    (c) =>
-      typeof c.name === "string" &&
-      c.name.startsWith(DOOR_PREFIX) &&
-      (c.permission_overwrites ?? []).some((o) => overwriteGrantsView(o, userId)),
+export function channelGrantsUser(channel, userId) {
+  return (
+    typeof channel?.name === "string" &&
+    channel.name.startsWith(DOOR_PREFIX) &&
+    (channel.permission_overwrites ?? []).some((o) => overwriteGrantsView(o, userId))
   );
+}
+
+export function findUserChannel(channels, userId) {
+  const matches = channels.filter((c) => channelGrantsUser(c, userId));
   if (matches.length === 0) return { error: "none" };
   if (matches.length > 1) return { error: "multiple" };
   return { channel: matches[0] };

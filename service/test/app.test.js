@@ -8,13 +8,19 @@ import { hashToken } from "../src/token.js";
 
 const VIEW = String(1 << 10);
 
+const DEFAULT_CHANNEL = {
+  id: "c1",
+  name: "🚪: 4321",
+  permission_overwrites: [{ id: "u1", type: 1, allow: VIEW, deny: "0" }],
+};
+
 function fakeDiscord() {
   const state = {
     me: { id: "u1" },
     channels: [
       { id: "c1", name: "🚪: 4321", permission_overwrites: [{ id: "u1", type: 1, allow: VIEW, deny: "0" }] },
     ],
-    channel: { id: "c1", name: "🚪: 4321" },
+    channel: { ...DEFAULT_CHANNEL },
     channelError: null,
     calls: [],
   };
@@ -160,7 +166,7 @@ test("GET /code is 422 when the channel name has no trailing digits", async () =
   const token = await tokenFromSignIn();
   discord.state.channel = { id: "c1", name: "🚪: tbd" };
   const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channel = { id: "c1", name: "🚪: 4321" };
+  discord.state.channel = { ...DEFAULT_CHANNEL };
   assert.equal(res.status, 422);
   assert.deepEqual(await res.json(), { error: "unparseable" });
 });
@@ -183,6 +189,32 @@ test("GET /code is 403 reauth when Discord says 403", async () => {
   const res = await get("/code", { authorization: `Bearer ${token}` });
   discord.state.channelError = null;
   assert.equal(res.status, 403);
+});
+
+test("GET /code is 403 reauth and deletes the token when the user's overwrite is gone", async () => {
+  const token = await tokenFromSignIn();
+  discord.state.channel = { ...DEFAULT_CHANNEL, permission_overwrites: [] };
+  const res = await get("/code", { authorization: `Bearer ${token}` });
+  discord.state.channel = { ...DEFAULT_CHANNEL };
+  assert.equal(res.status, 403);
+  assert.deepEqual(await res.json(), { error: "reauth" });
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(store.get(hashToken(token)), undefined);
+  const again = await get("/code", { authorization: `Bearer ${token}` });
+  assert.equal(again.status, 401);
+});
+
+test("GET /code is 403 reauth when the channel's overwrite now belongs to another user", async () => {
+  const token = await tokenFromSignIn();
+  discord.state.channel = {
+    ...DEFAULT_CHANNEL,
+    permission_overwrites: [{ id: "u2", type: 1, allow: VIEW, deny: "0" }],
+  };
+  const res = await get("/code", { authorization: `Bearer ${token}` });
+  discord.state.channel = { ...DEFAULT_CHANNEL };
+  assert.equal(res.status, 403);
+  assert.deepEqual(await res.json(), { error: "reauth" });
+  assert.equal(store.get(hashToken(token)), undefined);
 });
 
 test("GET /code is 502 when Discord fails some other way", async () => {

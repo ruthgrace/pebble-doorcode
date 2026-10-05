@@ -1,5 +1,5 @@
 import { DiscordError } from "./discord.js";
-import { extractCode, findUserChannel } from "./match.js";
+import { extractCode, findUserChannel, channelGrantsUser } from "./match.js";
 import { newToken, hashToken } from "./token.js";
 
 function sendJson(res, status, body, extraHeaders = {}) {
@@ -102,6 +102,10 @@ export function createApp({ baseUrl, guildId, store, discord }) {
         }
         console.error(e);
         return sendJson(res, 502, { error: "discord" }, noStore);
+      }
+      if (!channelGrantsUser(channel, row.userId)) {
+        store.del(h);
+        return sendJson(res, 403, { error: "reauth" }, noStore);
       }
       const code = extractCode(channel.name);
       if (!code) return sendJson(res, 422, { error: "unparseable" }, noStore);
