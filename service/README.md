@@ -1,0 +1,89 @@
+# Door code service
+
+Reads a member's door code from the name of their private `🚪:` channel in
+one Discord server and serves it to the Pebble watchapp.
+
+## Requirements
+
+- Node 22.13 or newer (uses the built-in `node:sqlite`).
+- A domain pointed at your server with nginx and a TLS certificate.
+- A Discord application with a bot, invited to the server.
+
+## Discord setup
+
+1. Go to https://discord.com/developers/applications and create an application.
+2. Under **OAuth2**, add the redirect `https://moxcode.ruthgracewong.com/auth/callback`.
+   Copy the Client ID and Client Secret.
+3. Under **Bot**, create the bot and copy its token. No privileged intents are needed.
+4. Build an invite URL with only the **View Channels** permission:
+   `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot&permissions=1024`
+   Send it to a server admin to approve.
+5. The admin must make sure the bot can see each member's private `🚪:` channel
+   (for example by adding the bot's role to those channels).
+6. Copy the server ID (enable Developer Mode in Discord, right-click the server, Copy ID).
+
+## Install on the server
+
+Check your Node version:
+
+```bash
+node --version            # must be >= 22.13
+sudo dnf module switch-to nodejs:24 -y   # or: sudo dnf update nodejs
+```
+
+Then proceed with the installation:
+
+```bash
+sudo useradd --system --home /opt/doorcode --shell /usr/sbin/nologin doorcode
+sudo mkdir -p /opt/doorcode /var/lib/doorcode
+sudo git clone https://github.com/ruthgrace/pebble-doorcode /opt/doorcode
+sudo chown -R doorcode:doorcode /opt/doorcode /var/lib/doorcode
+sudo cp /opt/doorcode/service/deploy/doorcode.env.example /etc/doorcode.env
+sudo chmod 600 /etc/doorcode.env
+sudo nano /etc/doorcode.env   # fill in the values
+sudo cp /opt/doorcode/service/deploy/doorcode.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now doorcode
+sudo journalctl -u doorcode -f
+```
+
+Then obtain the certificate and configure nginx:
+
+```bash
+sudo mkdir -p /var/www/moxcode/static
+sudo cp /opt/doorcode/service/deploy/nginx.conf /etc/nginx/conf.d/moxcode.conf
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot certonly --webroot -w /var/www/moxcode/static -d moxcode.ruthgracewong.com
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Note:** nginx will refuse to load the 443 server block until the certificate exists.
+If `nginx -t` fails on the first run, temporarily comment out the 443 server block,
+obtain the certificate, then restore it.
+
+## Verify
+
+Open `https://moxcode.ruthgracewong.com/auth/start` in a browser. Signing in should end on
+a page that tries to open `pebblejs://close#...`. In a normal browser that link
+does nothing, which is expected; it works inside the Pebble phone app.
+
+## Endpoints
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /auth/start` | Settings landing page used by the watchapp |
+| `GET /auth/discord` | Begins Discord OAuth |
+| `GET /auth/callback` | OAuth return; issues a token |
+| `GET /code` | `Authorization: Bearer <token>` returns `{ "code": "1234", "channel": "🚪: 1234" }` |
+| `POST /auth/revoke` | Deletes the token |
+
+Error responses from `/code`: 401 bad token, 403 `{"error":"reauth"}` (channel
+gone or bot lost access; token deleted), 422 `{"error":"unparseable"}`,
+502 `{"error":"discord"}`.
+
+## Development
+
+```bash
+cd service
+npm test
+```

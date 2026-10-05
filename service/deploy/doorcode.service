@@ -1,0 +1,20 @@
+[Unit]
+Description=Pebble door code service
+After=network.target
+
+[Service]
+Type=simple
+User=doorcode
+Group=doorcode
+WorkingDirectory=/opt/doorcode/service
+EnvironmentFile=/etc/doorcode.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/doorcode
+
+[Install]
+WantedBy=multi-user.target
