@@ -24,15 +24,17 @@ function withTimeout(promise, ms) {
   });
 }
 
-async function fetchCode() {
+async function fetchCode(t) {
   try {
-    const response = await withTimeout(
-      fetch(`${BASE_URL}/code`, { headers: { Authorization: `Bearer ${token}` } }),
+    return await withTimeout(
+      (async () => {
+        const response = await fetch(`${BASE_URL}/code`, { headers: { Authorization: `Bearer ${t}` } });
+        let body = null;
+        try { body = await response.json(); } catch {}
+        return { status: response.status, body };
+      })(),
       FETCH_TIMEOUT_MS,
     );
-    let body = null;
-    try { body = await response.json(); } catch {}
-    return { status: response.status, body };
   } catch (e) {
     console.log(`fetch failed: ${e}`);
     return { error: true };
@@ -40,23 +42,40 @@ async function fetchCode() {
 }
 
 let refreshing = false;
+let refreshPending = false;
 async function refresh() {
   if (!token) return render({ kind: "notoken" });
-  if (refreshing) return;
-  refreshing = true;
-  render({ kind: "loading" });
-  const view = interpret(await fetchCode());
-  refreshing = false;
-  if (view.kind === "ok") {
-    cachedCode = view.code;
-    fetchedAt = String(Date.now());
-    localStorage.setItem("code", cachedCode);
-    localStorage.setItem("fetchedAt", fetchedAt);
-  } else if (view.kind === "reauth") {
-    token = null;
-    localStorage.removeItem("token");
+  if (refreshing) {
+    refreshPending = true;
+    return;
   }
-  render(view);
+  refreshing = true;
+  try {
+    const t = token;
+    render({ kind: "loading" });
+    const view = interpret(await fetchCode(t));
+    // The token changed (new TOKEN or SIGNOUT) while fetching: discard this result.
+    if (token !== t) {
+      if (token) refreshPending = true;
+      return;
+    }
+    if (view.kind === "ok") {
+      cachedCode = view.code;
+      fetchedAt = String(Date.now());
+      localStorage.setItem("code", cachedCode);
+      localStorage.setItem("fetchedAt", fetchedAt);
+    } else if (view.kind === "reauth") {
+      token = null;
+      localStorage.removeItem("token");
+    }
+    render(view);
+  } finally {
+    refreshing = false;
+    if (refreshPending) {
+      refreshPending = false;
+      if (token) refresh();
+    }
+  }
 }
 
 async function signOut() {

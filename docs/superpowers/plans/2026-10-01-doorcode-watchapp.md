@@ -562,13 +562,19 @@ Expected: the emulator shows `----` in large digits and "Set up in phone app set
 
 - [ ] **Step 5: Verify the cached-state rendering and the wide-code fallback with a temporary stub**
 
-Temporarily add these two lines right after the three `localStorage.getItem` lines in `main.js`:
+Temporarily add this line right after the three `localStorage.getItem` lines in `main.js`:
 
 ```js
 cachedCode = "123456"; fetchedAt = String(Date.now() - 2 * 86400000); token = null;
 ```
 
-Rebuild and install. Expected: `123456` drawn in the 40 px font (it is wider than 184 px at 64 px) and the status line reads "Set up in phone app settings" because `token` is null. Change `"123456"` to `"1234"` and rebuild: it is now drawn in the 64 px font. Then **remove the stub lines** before continuing.
+and this line right after the initial `render(token ? ... : { kind: "notoken" });` call (the notoken view always shows `----`, so the stale view is needed to draw the cached code):
+
+```js
+render({ kind: "stale" });
+```
+
+Rebuild and install. Expected: `123456` drawn in the 40 px font (it is wider than 184 px at 64 px) and the status line reads "cached, from <weekday>" (the weekday two days ago). Change `"123456"` to `"1234"` and rebuild: it is now drawn in the 64 px font. Then **remove both stub lines** before continuing.
 
 - [ ] **Step 6: Run the pure tests once more and commit**
 
