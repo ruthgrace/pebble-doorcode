@@ -24,42 +24,59 @@ one Discord server and serves it to the Pebble watchapp.
 
 ## Install on the server
 
-Check your Node version:
+Check and upgrade your Node version:
 
 ```bash
 node --version            # must be >= 22.13
-sudo dnf module switch-to nodejs:24 -y   # or: sudo dnf update nodejs
+```
+
+If it's below 22.13, upgrade:
+
+```bash
+sudo dnf module switch-to nodejs:24 -y
+node --version            # verify now prints 22.13 or newer (24.x expected)
 ```
 
 Then proceed with the installation:
 
 ```bash
 sudo useradd --system --home /opt/doorcode --shell /usr/sbin/nologin doorcode
-sudo mkdir -p /opt/doorcode /var/lib/doorcode
+sudo mkdir -p /var/lib/doorcode
 sudo git clone https://github.com/ruthgrace/pebble-doorcode /opt/doorcode
 sudo chown -R doorcode:doorcode /opt/doorcode /var/lib/doorcode
 sudo cp /opt/doorcode/service/deploy/doorcode.env.example /etc/doorcode.env
 sudo chmod 600 /etc/doorcode.env
 sudo nano /etc/doorcode.env   # fill in the values
 sudo cp /opt/doorcode/service/deploy/doorcode.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now doorcode
-sudo journalctl -u doorcode -f
 ```
 
-Then obtain the certificate and configure nginx:
+Obtain the TLS certificate first, then enable the service:
 
 ```bash
 sudo mkdir -p /var/www/moxcode/static
-sudo cp /opt/doorcode/service/deploy/nginx.conf /etc/nginx/conf.d/moxcode.conf
+sudo cp /opt/doorcode/service/deploy/nginx-http.conf /etc/nginx/conf.d/moxcode.conf
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot certonly --webroot -w /var/www/moxcode/static -d moxcode.ruthgracewong.com
+sudo cp /opt/doorcode/service/deploy/nginx.conf /etc/nginx/conf.d/moxcode.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**Note:** nginx will refuse to load the 443 server block until the certificate exists.
-If `nginx -t` fails on the first run, temporarily comment out the 443 server block,
-obtain the certificate, then restore it.
+On AlmaLinux with SELinux enforcing, nginx needs permission to reach the service:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+getsebool httpd_can_network_connect           # verify it prints on
+```
+
+Now enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now doorcode
+sudo journalctl -u doorcode -n 50 --no-pager
+```
+
+The last command should show recent logs; look for the line `doorcode service listening on 127.0.0.1:8787`.
 
 ## Verify
 
