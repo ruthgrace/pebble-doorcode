@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { statusLine, bigText } from "../src/embeddedjs/status.js";
 
+// Local-time fixtures (status.js reads weekday/date in local time).
 // 2026-10-01 is a Thursday. 2026-09-29 is a Tuesday.
-const THU = Date.UTC(2026, 9, 1, 12);
-const TUE = Date.UTC(2026, 8, 29, 12);
+const THU = new Date(2026, 9, 1, 12).getTime();
+const TUE = new Date(2026, 8, 29, 12).getTime();
 
 test("notoken", () => {
   assert.equal(statusLine({ kind: "notoken" }, null, THU), "Set up in phone app settings");

@@ -573,7 +573,7 @@ Rebuild and install. Expected: `123456` drawn in the 40 px font (it is wider tha
 - [ ] **Step 6: Run the pure tests once more and commit**
 
 ```bash
-cd watchapp && node --test test/ && cd .. && git add watchapp && git commit -m "watchapp: display and main flow"
+cd watchapp && node --test test/*.test.js && cd .. && git add watchapp && git commit -m "watchapp: display and main flow"
 ```
 
 ---
@@ -750,7 +750,7 @@ Then on the watch: Settings > Quick Launch > pick a button > Door Code.
 
 ```bash
 (cd service && npm test)
-(cd watchapp && node --test test/)
+(cd watchapp && node --test test/*.test.js)
 ```
 
 ## Security notes
