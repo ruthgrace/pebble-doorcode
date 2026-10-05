@@ -55,9 +55,15 @@ Endpoints:
   (`pebblejs://close#<urlencoded JSON>`) carrying the raw token. Zero
   matches: show "No door code channel found for your account." More than
   one match: show "Multiple channels found, contact the admin." Never guess.
+  Before issuing a token the service fetches the matched channel with the bot
+  token; a 403/404 shows "The bot can't see your door channel, contact the
+  admin."
 - `GET /code` — requires `Authorization: Bearer <token>`. Hashes the token,
-  looks it up, fetches `GET /channels/{id}` from Discord with the bot token,
-  extracts the trailing digit run from the channel name, returns
+  looks it up, fetches `GET /channels/{id}` from Discord with the bot token.
+  The service also re-checks that the channel still grants View Channel to the
+  stored user ID via a member overwrite; if not, the row is deleted and 403
+  reauth is returned, because Discord keeps overwrites when a member leaves.
+  Extracts the trailing digit run from the channel name, returns
   `{ "code": "1234", "channel": "🚪: 1234" }`. Responses:
   - 401 unknown token.
   - 403 channel missing or bot lacks access (Discord 403/404). The token
@@ -128,7 +134,7 @@ with a digits-only charset for the big font).
 | --- | --- | --- |
 | Discord down | 502 | cached code, "cached" label |
 | Channel renamed without digits | 422 | "Code unreadable" + cached |
-| User left server / bot lost access | 403, row deleted | "Sign in again in settings" |
+| User left server / bot lost access | 403, row deleted (overwrite re-check or Discord 403/404) | "Sign in again in settings" |
 | Multiple matching channels at sign-in | error page, no token | n/a |
 | Phone not connected | n/a | cached code, "cached" label |
 | No token yet | n/a | "Set up in phone app settings" |

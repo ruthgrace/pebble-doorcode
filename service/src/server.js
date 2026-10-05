@@ -4,7 +4,8 @@ import { openStore } from "./store.js";
 import { createDiscordClient } from "./discord.js";
 
 function env(name, fallback) {
-  const v = process.env[name] ?? fallback;
+  const raw = process.env[name];
+  const v = raw === undefined || raw === "" ? fallback : raw;
   if (v === undefined) {
     console.error(`Missing required environment variable ${name}`);
     process.exit(1);
@@ -21,6 +22,15 @@ const config = {
   dbPath: env("DB_PATH", "./doorcode.sqlite"),
   port: Number(env("PORT", "8787")),
 };
+
+if (!config.baseUrl.startsWith("https://")) {
+  console.error("BASE_URL must start with https://");
+  process.exit(1);
+}
+if (!Number.isInteger(config.port) || config.port <= 0) {
+  console.error("PORT must be a positive integer");
+  process.exit(1);
+}
 
 const store = openStore(config.dbPath);
 const discord = createDiscordClient(config);

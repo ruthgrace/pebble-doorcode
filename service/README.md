@@ -24,6 +24,13 @@ one Discord server and serves it to the Pebble watchapp.
 
 ## Install on the server
 
+The commands and files below use the author's values: domain
+`moxcode.ruthgracewong.com`, webroot `/var/www/moxcode/static`, nginx conf name
+`moxcode.conf`, and port `8787`. Replace the domain in
+`deploy/doorcode.env.example`, `deploy/nginx-http.conf`, `deploy/nginx.conf` and
+the commands below, for example with
+`sed -i 's/moxcode.ruthgracewong.com/YOUR.DOMAIN/g' deploy/*.conf deploy/doorcode.env.example`.
+
 Check and upgrade your Node version:
 
 ```bash
@@ -56,7 +63,7 @@ Obtain the TLS certificate first, then enable the service:
 sudo mkdir -p /var/www/moxcode/static
 sudo cp /opt/doorcode/service/deploy/nginx-http.conf /etc/nginx/conf.d/moxcode.conf
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot certonly --webroot -w /var/www/moxcode/static -d moxcode.ruthgracewong.com
+sudo certbot certonly --webroot -w /var/www/moxcode/static -d moxcode.ruthgracewong.com --deploy-hook "systemctl reload nginx"
 sudo cp /opt/doorcode/service/deploy/nginx.conf /etc/nginx/conf.d/moxcode.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
@@ -104,3 +111,11 @@ gone or bot lost access; token deleted), 422 `{"error":"unparseable"}`,
 cd service
 npm test
 ```
+
+## Updating
+
+```bash
+cd /opt/doorcode && sudo -u doorcode git pull && sudo systemctl restart doorcode
+```
+
+Running git as the owning user avoids the dubious-ownership error.
