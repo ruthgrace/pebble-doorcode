@@ -2,8 +2,8 @@ import { DiscordError } from "./discord.js";
 import { extractCode, findUserChannel } from "./match.js";
 import { newToken, hashToken } from "./token.js";
 
-function sendJson(res, status, body) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+function sendJson(res, status, body, extraHeaders = {}) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...extraHeaders });
   res.end(JSON.stringify(body));
 }
 
@@ -82,28 +82,30 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       const href = closeUrl({ token });
       return sendHtml(res, 200, page("Signed in",
         `<h1>Signed in</h1><p>Returning to the Pebble app.</p><a class="btn" href="${href}">Continue</a><script>location.href=${JSON.stringify(href)};</script>`),
-        { "Set-Cookie": "state=; Max-Age=0; Path=/auth" });
+        { "Set-Cookie": "state=; Max-Age=0; Path=/auth", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
     }
 
     if (route === "GET /code") {
       const token = bearer(req);
-      if (!token) return sendJson(res, 401, { error: "unauthorized" });
+      const noStore = { "Cache-Control": "no-store" };
+      if (!token) return sendJson(res, 401, { error: "unauthorized" }, noStore);
       const h = hashToken(token);
       const row = store.get(h);
-      if (!row) return sendJson(res, 401, { error: "unauthorized" });
+      if (!row) return sendJson(res, 401, { error: "unauthorized" }, noStore);
       let channel;
       try {
         channel = await discord.getChannel(row.channelId);
       } catch (e) {
         if (e instanceof DiscordError && (e.status === 403 || e.status === 404)) {
           store.del(h);
-          return sendJson(res, 403, { error: "reauth" });
+          return sendJson(res, 403, { error: "reauth" }, noStore);
         }
-        return sendJson(res, 502, { error: "discord" });
+        console.error(e);
+        return sendJson(res, 502, { error: "discord" }, noStore);
       }
       const code = extractCode(channel.name);
-      if (!code) return sendJson(res, 422, { error: "unparseable" });
-      return sendJson(res, 200, { code, channel: channel.name });
+      if (!code) return sendJson(res, 422, { error: "unparseable" }, noStore);
+      return sendJson(res, 200, { code, channel: channel.name }, noStore);
     }
 
     if (route === "POST /auth/revoke") {

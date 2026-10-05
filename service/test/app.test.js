@@ -103,6 +103,8 @@ test("successful callback stores a token and returns a pebblejs close page with 
   const m = /pebblejs:\/\/close#([A-Za-z0-9%._-]+)/.exec(html);
   assert.ok(m, "close url present");
   const payload = JSON.parse(decodeURIComponent(m[1]));
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(res.headers.get("referrer-policy"), "no-referrer");
   assert.match(payload.token, /^[A-Za-z0-9_-]{43}$/);
   const row = store.get(hashToken(payload.token));
   assert.equal(row.userId, "u1");
@@ -136,6 +138,7 @@ test("GET /code with a valid token returns the code", async () => {
   const token = await tokenFromSignIn();
   const res = await get("/code", { authorization: `Bearer ${token}` });
   assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
   assert.deepEqual(await res.json(), { code: "4321", channel: "🚪: 4321" });
 });
 
