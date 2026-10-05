@@ -79,16 +79,7 @@ async function refresh() {
 }
 
 async function signOut() {
-  if (token) {
-    try {
-      await withTimeout(
-        fetch(`${BASE_URL}/auth/revoke`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }),
-        FETCH_TIMEOUT_MS,
-      );
-    } catch (e) {
-      console.log(`revoke failed: ${e}`);
-    }
-  }
+  const t = token;
   token = null;
   cachedCode = null;
   fetchedAt = null;
@@ -96,6 +87,16 @@ async function signOut() {
   localStorage.removeItem("code");
   localStorage.removeItem("fetchedAt");
   render({ kind: "notoken" });
+  if (t) {
+    try {
+      await withTimeout(
+        fetch(`${BASE_URL}/auth/revoke`, { method: "POST", headers: { Authorization: `Bearer ${t}` } }),
+        FETCH_TIMEOUT_MS,
+      );
+    } catch (e) {
+      console.log(`revoke failed: ${e}`);
+    }
+  }
 }
 
 new Message({
