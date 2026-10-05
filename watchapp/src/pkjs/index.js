@@ -11,7 +11,10 @@ function sendToken(token) {
 
 function sendSignout() {
   Pebble.sendAppMessage({ SIGNOUT: 1 },
-    function () { console.log("signout sent to watch"); },
+    function () {
+      localStorage.removeItem("pendingSignout");
+      console.log("signout sent to watch");
+    },
     function (e) { console.log("signout send failed: " + JSON.stringify(e)); });
 }
 
@@ -19,7 +22,6 @@ Pebble.addEventListener("ready", function (e) {
   moddableProxy.readyReceived(e);
   var pending = localStorage.getItem("pendingSignout");
   if (pending) {
-    localStorage.removeItem("pendingSignout");
     sendSignout();
     return;
   }
@@ -41,14 +43,16 @@ Pebble.addEventListener("webviewclosed", function (e) {
   try {
     data = JSON.parse(decodeURIComponent(e.response));
   } catch (err) {
-    console.log("bad config response: " + e.response);
+    console.log("bad config response (" + e.response.length + " chars)");
     return;
   }
+  if (!data || typeof data !== "object") return;
   if (data.signout) {
     localStorage.removeItem("token");
     localStorage.setItem("pendingSignout", "1");
     sendSignout();
   } else if (typeof data.token === "string" && data.token.length) {
+    localStorage.removeItem("pendingSignout");
     localStorage.setItem("token", data.token);
     sendToken(data.token);
   }
