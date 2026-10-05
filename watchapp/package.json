@@ -1,0 +1,35 @@
+{
+  "name": "pebble-doorcode-watchapp",
+  "author": "Ruth Grace Wong",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "@moddable/pebbleproxy": "^0.2.0"
+  },
+  "pebble": {
+    "displayName": "Door Code",
+    "uuid": "b6e67d22-c1d2-4704-822d-b36cbceadb09",
+    "projectType": "moddable",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "TOKEN",
+      "SIGNOUT"
+    ],
+    "resources": {
+      "media": []
+    },
+    "capabilities": [
+      "configurable"
+    ]
+  }
+}
