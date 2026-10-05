@@ -33,3 +33,14 @@ test("put with an existing hash replaces the row", () => {
   assert.equal(s.get("h1").channelId, "c2");
   s.close();
 });
+
+test("count returns the number of rows", () => {
+  const s = openStore(":memory:");
+  assert.equal(s.count(), 0);
+  s.put({ tokenHash: "h1", userId: "u1", channelId: "c1" });
+  s.put({ tokenHash: "h2", userId: "u2", channelId: "c2" });
+  assert.equal(s.count(), 2);
+  s.del("h1");
+  assert.equal(s.count(), 1);
+  s.close();
+});

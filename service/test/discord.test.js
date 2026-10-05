@@ -42,6 +42,15 @@ test("exchangeCode posts form data and returns access_token", async () => {
   assert.equal(form.get("client_secret"), "sec");
 });
 
+test("exchangeCode throws DiscordError 502 when the response has no access_token", async () => {
+  const { fetchImpl } = fakeFetch(() => ({ body: { token_type: "Bearer" } }));
+  const c = createDiscordClient({ ...cfg, fetchImpl });
+  await assert.rejects(
+    () => c.exchangeCode("thecode", "https://x.test/cb"),
+    (e) => e instanceof DiscordError && e.status === 502 && /no access_token/.test(e.message),
+  );
+});
+
 test("getMe uses the user bearer token", async () => {
   const { fetchImpl, calls } = fakeFetch(() => ({ body: { id: "u1" } }));
   const c = createDiscordClient({ ...cfg, fetchImpl });

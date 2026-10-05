@@ -33,6 +33,8 @@ function bearer(req) {
   return m ? m[1] : null;
 }
 
+const CLEAR_STATE = "state=; Max-Age=0; Path=/auth";
+
 function closeUrl(payload) {
   return "pebblejs://close#" + encodeURIComponent(JSON.stringify(payload));
 }
@@ -56,7 +58,7 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       const state = newToken();
       return sendHtml(res, 302, "", {
         Location: discord.authorizeUrl(redirectUri, state),
-        "Set-Cookie": `state=${state}; HttpOnly; SameSite=Lax; Max-Age=600; Path=/auth`,
+        "Set-Cookie": `state=${state}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/auth`,
       });
     }
 
@@ -67,22 +69,41 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       if (!state || !code || !cookies.state || cookies.state !== state) {
         return sendHtml(res, 400, page("Error", "<h1>Sign-in failed</h1><p>Please go back and try again.</p>"));
       }
-      const accessToken = await discord.exchangeCode(code, redirectUri);
-      const me = await discord.getMe(accessToken);
-      const channels = await discord.listGuildChannels(guildId);
+      const clearState = { "Set-Cookie": CLEAR_STATE };
+      const failed = () => {
+        return sendHtml(res, 502, page("Error", "<h1>Sign-in failed</h1><p>Discord did not respond as expected. Go back and try again.</p>"), clearState);
+      };
+      let me, channels;
+      try {
+        const accessToken = await discord.exchangeCode(code, redirectUri);
+        me = await discord.getMe(accessToken);
+        channels = await discord.listGuildChannels(guildId);
+      } catch (e) {
+        console.error(e);
+        return failed();
+      }
       const match = findUserChannel(channels, me.id);
       if (match.error === "none") {
-        return sendHtml(res, 200, page("Not found", "<h1>No door code channel found for your account.</h1><p>Ask the server admin to check your door channel.</p>"));
+        return sendHtml(res, 200, page("Not found", "<h1>No door code channel found for your account.</h1><p>Ask the server admin to check your door channel.</p>"), clearState);
       }
       if (match.error === "multiple") {
-        return sendHtml(res, 200, page("Ambiguous", "<h1>Multiple door code channels found, contact the admin.</h1>"));
+        return sendHtml(res, 200, page("Ambiguous", "<h1>Multiple door code channels found, contact the admin.</h1>"), clearState);
+      }
+      try {
+        await discord.getChannel(match.channel.id);
+      } catch (e) {
+        if (e instanceof DiscordError && (e.status === 403 || e.status === 404)) {
+          return sendHtml(res, 200, page("Not visible", "<h1>The bot can't see your door channel, contact the admin.</h1>"), clearState);
+        }
+        console.error(e);
+        return failed();
       }
       const token = newToken();
       store.put({ tokenHash: hashToken(token), userId: me.id, channelId: match.channel.id });
       const href = closeUrl({ token });
       return sendHtml(res, 200, page("Signed in",
         `<h1>Signed in</h1><p>Returning to the Pebble app.</p><a class="btn" href="${href}">Continue</a><script>location.href=${JSON.stringify(href)};</script>`),
-        { "Set-Cookie": "state=; Max-Age=0; Path=/auth", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+        { "Set-Cookie": CLEAR_STATE, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
     }
 
     if (route === "GET /code") {

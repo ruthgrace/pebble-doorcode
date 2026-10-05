@@ -22,11 +22,20 @@ function fakeDiscord() {
     ],
     channel: { ...DEFAULT_CHANNEL },
     channelError: null,
+    exchangeError: null,
     calls: [],
   };
   const client = {
     authorizeUrl: (redirectUri, st) => `https://discord.com/oauth2/authorize?state=${st}&redirect_uri=${encodeURIComponent(redirectUri)}`,
-    async exchangeCode(code) { state.calls.push(["exchangeCode", code]); return "at"; },
+    async exchangeCode(code) {
+      state.calls.push(["exchangeCode", code]);
+      if (state.exchangeError) {
+        const e = state.exchangeError;
+        state.exchangeError = null;
+        throw e;
+      }
+      return "at";
+    },
     async getMe() { state.calls.push(["getMe"]); return state.me; },
     async listGuildChannels(g) { state.calls.push(["listGuildChannels", g]); return state.channels; },
     async getChannel(id) {
@@ -81,6 +90,7 @@ test("GET /auth/discord sets a state cookie and redirects to Discord with that s
   assert.equal(loc.searchParams.get("state"), st);
   assert.equal(loc.searchParams.get("redirect_uri"), "https://dc.test/auth/callback");
   assert.match(res.headers.get("set-cookie"), /HttpOnly/);
+  assert.match(res.headers.get("set-cookie"), /Secure/);
 });
 
 test("GET /auth/callback with mismatched state is 400 and never calls Discord", async () => {
@@ -120,18 +130,62 @@ test("successful callback stores a token and returns a pebblejs close page with 
 test("callback with no matching channel shows the none message and stores nothing", async () => {
   const saved = discord.state.channels;
   discord.state.channels = [];
+  const before = store.count();
   const res = await signIn();
   discord.state.channels = saved;
   assert.equal(res.status, 200);
-  assert.match(await res.text(), /No door code channel found/);
+  const html = await res.text();
+  assert.match(html, /No door code channel found/);
+  assert.doesNotMatch(html, /pebblejs:\/\/close#/);
+  assert.equal(store.count(), before);
+  assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
 });
 
 test("callback with multiple matching channels shows the multiple message", async () => {
   const saved = discord.state.channels;
   discord.state.channels = [saved[0], { ...saved[0], id: "c9" }];
+  const before = store.count();
   const res = await signIn();
   discord.state.channels = saved;
+  assert.equal(res.status, 200);
   assert.match(await res.text(), /Multiple door code channels/);
+  assert.equal(store.count(), before);
+  assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
+});
+
+test("callback renders an HTML 502 page when the Discord token exchange fails", async () => {
+  discord.state.exchangeError = new DiscordError(500, "boom");
+  const before = store.count();
+  const res = await signIn();
+  discord.state.exchangeError = null;
+  assert.equal(res.status, 502);
+  assert.match(res.headers.get("content-type"), /^text\/html/);
+  assert.match(await res.text(), /Sign-in failed/);
+  assert.equal(store.count(), before);
+  assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
+});
+
+test("callback does not issue a token when the bot cannot see the channel", async () => {
+  discord.state.channelError = new DiscordError(403, "Missing Access");
+  const before = store.count();
+  const res = await signIn();
+  discord.state.channelError = null;
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /The bot can't see your door channel, contact the admin\./);
+  assert.doesNotMatch(html, /pebblejs:\/\/close#/);
+  assert.equal(store.count(), before);
+  assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
+});
+
+test("callback gives an HTML 502 when the channel check fails some other way", async () => {
+  discord.state.channelError = new DiscordError(500, "boom");
+  const before = store.count();
+  const res = await signIn();
+  discord.state.channelError = null;
+  assert.equal(res.status, 502);
+  assert.match(await res.text(), /Sign-in failed/);
+  assert.equal(store.count(), before);
 });
 
 async function tokenFromSignIn() {
@@ -164,7 +218,7 @@ test("GET /code with an unknown token is 401", async () => {
 
 test("GET /code is 422 when the channel name has no trailing digits", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channel = { id: "c1", name: "🚪: tbd" };
+  discord.state.channel = { ...DEFAULT_CHANNEL, name: "🚪: tbd" };
   const res = await get("/code", { authorization: `Bearer ${token}` });
   discord.state.channel = { ...DEFAULT_CHANNEL };
   assert.equal(res.status, 422);
@@ -189,6 +243,7 @@ test("GET /code is 403 reauth when Discord says 403", async () => {
   const res = await get("/code", { authorization: `Bearer ${token}` });
   discord.state.channelError = null;
   assert.equal(res.status, 403);
+  assert.equal(store.get(hashToken(token)), undefined);
 });
 
 test("GET /code is 403 reauth and deletes the token when the user's overwrite is gone", async () => {

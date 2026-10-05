@@ -46,6 +46,9 @@ export function createDiscordClient({ clientId, clientSecret, botToken, fetchImp
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body,
       });
+      if (typeof json?.access_token !== "string") {
+        throw new DiscordError(502, "no access_token in token response");
+      }
       return json.access_token;
     },
 

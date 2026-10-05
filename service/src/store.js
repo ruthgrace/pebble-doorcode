@@ -16,6 +16,7 @@ export function openStore(path) {
   const getStmt = db.prepare(
     "SELECT token_hash AS tokenHash, user_id AS userId, channel_id AS channelId, created_at AS createdAt FROM tokens WHERE token_hash = ?",
   );
+  const countStmt = db.prepare("SELECT COUNT(*) AS n FROM tokens");
   const delStmt = db.prepare("DELETE FROM tokens WHERE token_hash = ?");
 
   return {
@@ -27,6 +28,9 @@ export function openStore(path) {
     },
     del(tokenHash) {
       delStmt.run(tokenHash);
+    },
+    count() {
+      return countStmt.get().n;
     },
     close() {
       db.close();
