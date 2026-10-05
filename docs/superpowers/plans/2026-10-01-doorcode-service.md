@@ -57,7 +57,7 @@ Inputs the spec implies but which are easy to get wrong. Each has a test pinned 
   "engines": { "node": ">=22.13.0" },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {}
 }
