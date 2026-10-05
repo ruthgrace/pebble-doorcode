@@ -1,9 +1,31 @@
 {
- 	"include":  [
-		"$(MODDABLE)/examples/manifest_mod.json",
-		"$(MODDABLE)/examples/manifest_typings.json"
-	],
-	"modules": {
-		"*": "./main"
-	}
+  "include": [
+    "$(MODDABLE)/examples/manifest_mod.json",
+    "$(MODDABLE)/examples/manifest_typings.json"
+  ],
+  "modules": {
+    "*": ["./main", "./display", "./interpret", "./status", "./config"]
+  },
+  "resources": {
+    "*-alpha": [
+      {
+        "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Bold",
+        "size": 64,
+        "monochrome": true,
+        "characters": "0123456789-"
+      },
+      {
+        "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Bold",
+        "size": 40,
+        "monochrome": true,
+        "characters": "0123456789-"
+      },
+      {
+        "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Regular",
+        "size": 16,
+        "monochrome": true,
+        "blocks": ["Basic Latin"]
+      }
+    ]
+  }
 }
