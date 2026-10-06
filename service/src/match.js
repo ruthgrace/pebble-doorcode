@@ -3,7 +3,7 @@ const VIEW_CHANNEL = 1n << 10n;
 
 export function extractCode(name) {
   if (typeof name !== "string") return null;
-  const m = /(\d+)\s*$/.exec(name);
+  const m = /(\d+[#*]*)\s*$/.exec(name);
   return m ? m[1] : null;
 }
 

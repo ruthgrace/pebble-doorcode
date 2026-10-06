@@ -93,3 +93,14 @@ test("channelGrantsUser is false with no overwrites", () => {
   assert.equal(channelGrantsUser(grantCh({ permission_overwrites: [] }), "u1"), false);
   assert.equal(channelGrantsUser({ name: "🚪: 1" }, "u1"), false);
 });
+
+test("extractCode keeps a trailing # or * after the digits", () => {
+  assert.equal(extractCode("🚪 Code: 5260#"), "5260#");
+  assert.equal(extractCode("🚪 Code: 5260# "), "5260#");
+  assert.equal(extractCode("🚪 Code: 5260*#"), "5260*#");
+  assert.equal(extractCode("🚪 Code: 5260"), "5260");
+});
+
+test("extractCode still rejects names with no digits before the suffix", () => {
+  assert.equal(extractCode("🚪 Code: #"), null);
+});

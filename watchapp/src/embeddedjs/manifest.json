@@ -12,13 +12,13 @@
         "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Bold",
         "size": 64,
         "monochrome": true,
-        "characters": "0123456789-"
+        "characters": "0123456789-#*"
       },
       {
         "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Bold",
         "size": 40,
         "monochrome": true,
-        "characters": "0123456789-"
+        "characters": "0123456789-#*"
       },
       {
         "source": "$(MODDABLE)/examples/assets/scalablefonts/OpenSans/OpenSans-Regular",
