@@ -4,18 +4,27 @@ var moddableProxy = require("@moddable/pebbleproxy");
 var BASE_URL = "https://moxcode.ruthgracewong.com";
 
 function sendToken(token) {
-  Pebble.sendAppMessage({ TOKEN: token },
+  moddableProxy.sendAppMessage({ TOKEN: token },
     function () { console.log("token sent to watch"); },
-    function (e) { console.log("token send failed: " + JSON.stringify(e)); });
+    function (e) { console.log("token send failed: " + (e && e.error ? e.error : "unknown")); });
 }
 
 function sendSignout() {
-  Pebble.sendAppMessage({ SIGNOUT: 1 },
+  moddableProxy.sendAppMessage({ SIGNOUT: 1 },
     function () {
       localStorage.removeItem("pendingSignout");
       console.log("signout sent to watch");
     },
-    function (e) { console.log("signout send failed: " + JSON.stringify(e)); });
+    function (e) { console.log("signout send failed: " + (e && e.error ? e.error : "unknown")); });
+}
+
+function revoke(token) {
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", BASE_URL + "/auth/revoke");
+  xhr.setRequestHeader("Authorization", "Bearer " + token);
+  xhr.onload = function () { console.log("revoke status " + xhr.status); };
+  xhr.onerror = function () { console.log("revoke request failed"); };
+  xhr.send();
 }
 
 Pebble.addEventListener("ready", function (e) {
@@ -48,10 +57,14 @@ Pebble.addEventListener("webviewclosed", function (e) {
   }
   if (!data || typeof data !== "object") return;
   if (data.signout) {
+    var oldSignout = localStorage.getItem("token");
+    if (oldSignout) revoke(oldSignout);
     localStorage.removeItem("token");
     localStorage.setItem("pendingSignout", "1");
     sendSignout();
   } else if (typeof data.token === "string" && data.token.length) {
+    var old = localStorage.getItem("token");
+    if (old && old !== data.token) revoke(old);
     localStorage.removeItem("pendingSignout");
     localStorage.setItem("token", data.token);
     sendToken(data.token);
