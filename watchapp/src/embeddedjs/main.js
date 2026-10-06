@@ -106,9 +106,11 @@ new Message({
     if (msg.has("SIGNOUT")) return void signOut();
     const t = msg.get("TOKEN");
     if (typeof t === "string" && t.length) {
-      token = t;
-      localStorage.setItem("token", token);
-      refresh();
+      if (t !== token) {
+        token = t;
+        localStorage.setItem("token", token);
+        refresh();
+      }
     }
   },
 });
