@@ -1,5 +1,4 @@
-import { DiscordError } from "./discord.js";
-import { extractCode, findUserChannel, channelGrantsUser } from "./match.js";
+import { extractCode, findUserChannel } from "./match.js";
 import { newToken, hashToken } from "./token.js";
 
 function sendJson(res, status, body, extraHeaders = {}) {
@@ -89,15 +88,6 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       if (match.error === "multiple") {
         return sendHtml(res, 200, page("Ambiguous", "<h1>Multiple door code channels found, contact the admin.</h1>"), clearState);
       }
-      try {
-        await discord.getChannel(match.channel.id);
-      } catch (e) {
-        if (e instanceof DiscordError && (e.status === 403 || e.status === 404)) {
-          return sendHtml(res, 200, page("Not visible", "<h1>The bot can't see your door channel, contact the admin.</h1>"), clearState);
-        }
-        console.error(e);
-        return failed();
-      }
       const token = newToken();
       store.put({ tokenHash: hashToken(token), userId: me.id, channelId: match.channel.id });
       const href = closeUrl({ token });
@@ -113,20 +103,23 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       const h = hashToken(token);
       const row = store.get(h);
       if (!row) return sendJson(res, 401, { error: "unauthorized" }, noStore);
-      let channel;
+      // Resolve the user's door channel fresh on every request by looking for
+      // the member overwrite in the guild listing. The listing includes private
+      // channels the bot has not been added to, so no per-channel bot access is
+      // needed, and a renamed or recreated channel is found automatically.
+      let channels;
       try {
-        channel = await discord.getChannel(row.channelId);
+        channels = await discord.listGuildChannels(guildId);
       } catch (e) {
-        if (e instanceof DiscordError && (e.status === 403 || e.status === 404)) {
-          store.del(h);
-          return sendJson(res, 403, { error: "reauth" }, noStore);
-        }
         console.error(e);
         return sendJson(res, 502, { error: "discord" }, noStore);
       }
-      if (!channelGrantsUser(channel, row.userId)) {
-        store.del(h);
-        return sendJson(res, 403, { error: "reauth" }, noStore);
+      const match = findUserChannel(channels, row.userId);
+      if (match.error === "none") return sendJson(res, 404, { error: "nochannel" }, noStore);
+      if (match.error === "multiple") return sendJson(res, 409, { error: "multiple" }, noStore);
+      const channel = match.channel;
+      if (channel.id !== row.channelId) {
+        store.put({ tokenHash: h, userId: row.userId, channelId: channel.id });
       }
       const code = extractCode(channel.name);
       if (!code) return sendJson(res, 422, { error: "unparseable" }, noStore);

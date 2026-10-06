@@ -20,8 +20,7 @@ function fakeDiscord() {
     channels: [
       { id: "c1", name: "🚪: 4321", permission_overwrites: [{ id: "u1", type: 1, allow: VIEW, deny: "0" }] },
     ],
-    channel: { ...DEFAULT_CHANNEL },
-    channelError: null,
+    listError: null,
     exchangeError: null,
     calls: [],
   };
@@ -37,11 +36,10 @@ function fakeDiscord() {
       return "at";
     },
     async getMe() { state.calls.push(["getMe"]); return state.me; },
-    async listGuildChannels(g) { state.calls.push(["listGuildChannels", g]); return state.channels; },
-    async getChannel(id) {
-      state.calls.push(["getChannel", id]);
-      if (state.channelError) throw state.channelError;
-      return state.channel;
+    async listGuildChannels(g) {
+      state.calls.push(["listGuildChannels", g]);
+      if (state.listError) { const e = state.listError; state.listError = null; throw e; }
+      return state.channels;
     },
   };
   return { client, state };
@@ -165,29 +163,6 @@ test("callback renders an HTML 502 page when the Discord token exchange fails", 
   assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
 });
 
-test("callback does not issue a token when the bot cannot see the channel", async () => {
-  discord.state.channelError = new DiscordError(403, "Missing Access");
-  const before = store.count();
-  const res = await signIn();
-  discord.state.channelError = null;
-  assert.equal(res.status, 200);
-  const html = await res.text();
-  assert.match(html, /The bot can't see your door channel, contact the admin\./);
-  assert.doesNotMatch(html, /pebblejs:\/\/close#/);
-  assert.equal(store.count(), before);
-  assert.match(res.headers.get("set-cookie"), /state=;\s*Max-Age=0/);
-});
-
-test("callback gives an HTML 502 when the channel check fails some other way", async () => {
-  discord.state.channelError = new DiscordError(500, "boom");
-  const before = store.count();
-  const res = await signIn();
-  discord.state.channelError = null;
-  assert.equal(res.status, 502);
-  assert.match(await res.text(), /Sign-in failed/);
-  assert.equal(store.count(), before);
-});
-
 async function tokenFromSignIn() {
   const html = await (await signIn()).text();
   const m = /pebblejs:\/\/close#([A-Za-z0-9%._-]+)/.exec(html);
@@ -216,67 +191,59 @@ test("GET /code with an unknown token is 401", async () => {
   assert.equal((await get("/code", { authorization: "Bearer nope" })).status, 401);
 });
 
+function withChannels(channels, fn) {
+  const saved = discord.state.channels;
+  discord.state.channels = channels;
+  return fn().finally(() => { discord.state.channels = saved; });
+}
+
 test("GET /code is 422 when the channel name has no trailing digits", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channel = { ...DEFAULT_CHANNEL, name: "🚪: tbd" };
-  const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channel = { ...DEFAULT_CHANNEL };
+  const res = await withChannels([{ ...DEFAULT_CHANNEL, name: "🚪: tbd" }], () =>
+    get("/code", { authorization: `Bearer ${token}` }));
   assert.equal(res.status, 422);
   assert.deepEqual(await res.json(), { error: "unparseable" });
 });
 
-test("GET /code is 403 reauth and deletes the token when Discord says 404", async () => {
+test("GET /code resolves the channel by the user's overwrite, not the stored id", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channelError = new DiscordError(404, "Unknown Channel");
-  const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channelError = null;
-  assert.equal(res.status, 403);
-  assert.deepEqual(await res.json(), { error: "reauth" });
-  assert.equal(store.get(hashToken(token)), undefined);
-  const again = await get("/code", { authorization: `Bearer ${token}` });
-  assert.equal(again.status, 401);
+  const recreated = { ...DEFAULT_CHANNEL, id: "c9", name: "🚪 Code: 7777#" };
+  const res = await withChannels([recreated], () => get("/code", { authorization: `Bearer ${token}` }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { code: "7777#", channel: "🚪 Code: 7777#" });
+  assert.equal(store.get(hashToken(token)).channelId, "c9");
 });
 
-test("GET /code is 403 reauth when Discord says 403", async () => {
+test("GET /code is 404 nochannel and keeps the token when the user has no door channel", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channelError = new DiscordError(403, "Missing Access");
-  const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channelError = null;
-  assert.equal(res.status, 403);
-  assert.equal(store.get(hashToken(token)), undefined);
-});
-
-test("GET /code is 403 reauth and deletes the token when the user's overwrite is gone", async () => {
-  const token = await tokenFromSignIn();
-  discord.state.channel = { ...DEFAULT_CHANNEL, permission_overwrites: [] };
-  const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channel = { ...DEFAULT_CHANNEL };
-  assert.equal(res.status, 403);
-  assert.deepEqual(await res.json(), { error: "reauth" });
+  const res = await withChannels([{ ...DEFAULT_CHANNEL, permission_overwrites: [] }], () =>
+    get("/code", { authorization: `Bearer ${token}` }));
+  assert.equal(res.status, 404);
+  assert.deepEqual(await res.json(), { error: "nochannel" });
   assert.equal(res.headers.get("cache-control"), "no-store");
-  assert.equal(store.get(hashToken(token)), undefined);
-  const again = await get("/code", { authorization: `Bearer ${token}` });
-  assert.equal(again.status, 401);
+  assert.ok(store.get(hashToken(token)), "token kept");
 });
 
-test("GET /code is 403 reauth when the channel's overwrite now belongs to another user", async () => {
+test("GET /code is 404 nochannel when the door channel now belongs to another user", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channel = {
-    ...DEFAULT_CHANNEL,
-    permission_overwrites: [{ id: "u2", type: 1, allow: VIEW, deny: "0" }],
-  };
-  const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channel = { ...DEFAULT_CHANNEL };
-  assert.equal(res.status, 403);
-  assert.deepEqual(await res.json(), { error: "reauth" });
-  assert.equal(store.get(hashToken(token)), undefined);
+  const other = { ...DEFAULT_CHANNEL, permission_overwrites: [{ id: "u2", type: 1, allow: VIEW, deny: "0" }] };
+  const res = await withChannels([other], () => get("/code", { authorization: `Bearer ${token}` }));
+  assert.equal(res.status, 404);
+  assert.ok(store.get(hashToken(token)), "token kept");
 });
 
-test("GET /code is 502 when Discord fails some other way", async () => {
+test("GET /code is 409 multiple when more than one door channel matches", async () => {
   const token = await tokenFromSignIn();
-  discord.state.channelError = new DiscordError(500, "boom");
+  const res = await withChannels([DEFAULT_CHANNEL, { ...DEFAULT_CHANNEL, id: "c2" }], () =>
+    get("/code", { authorization: `Bearer ${token}` }));
+  assert.equal(res.status, 409);
+  assert.deepEqual(await res.json(), { error: "multiple" });
+});
+
+test("GET /code is 502 when the Discord listing fails", async () => {
+  const token = await tokenFromSignIn();
+  discord.state.listError = new DiscordError(500, "boom");
   const res = await get("/code", { authorization: `Bearer ${token}` });
-  discord.state.channelError = null;
   assert.equal(res.status, 502);
   assert.deepEqual(await res.json(), { error: "discord" });
   assert.ok(store.get(hashToken(token)), "token kept on 502");

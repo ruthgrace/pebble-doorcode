@@ -18,8 +18,9 @@ one Discord server and serves it to the Pebble watchapp.
 4. Build an invite URL with only the **View Channels** permission:
    `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot&permissions=1024`
    Send it to a server admin to approve.
-5. The admin must make sure the bot can see each member's private `🚪:` channel
-   (for example by adding the bot's role to those channels).
+5. The bot does not need to be added to the private door channels or
+   categories: the server-wide channel listing exposes their names and
+   permissions to any bot in the server.
 6. Copy the server ID (enable Developer Mode in Discord, right-click the server, Copy ID).
 
 ## Install on the server
@@ -101,9 +102,9 @@ does nothing, which is expected; it works inside the Pebble phone app.
 | `GET /code` | `Authorization: Bearer <token>` returns `{ "code": "1234", "channel": "🚪: 1234" }` |
 | `POST /auth/revoke` | Deletes the token |
 
-Error responses from `/code`: 401 bad token, 403 `{"error":"reauth"}` (channel
-gone or bot lost access; token deleted), 422 `{"error":"unparseable"}`,
-502 `{"error":"discord"}`.
+Error responses from `/code`: 401 bad token, 404 `{"error":"nochannel"}`
+(no door channel grants this user; token kept), 409 `{"error":"multiple"}`,
+422 `{"error":"unparseable"}`, 502 `{"error":"discord"}`.
 
 ## Development
 

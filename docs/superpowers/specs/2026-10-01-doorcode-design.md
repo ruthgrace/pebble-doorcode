@@ -59,17 +59,20 @@ Endpoints:
   token; a 403/404 shows "The bot can't see your door channel, contact the
   admin."
 - `GET /code` — requires `Authorization: Bearer <token>`. Hashes the token,
-  looks it up, fetches `GET /channels/{id}` from Discord with the bot token.
-  The service also re-checks that the channel still grants View Channel to the
-  stored user ID via a member overwrite; if not, the row is deleted and 403
-  reauth is returned, because Discord keeps overwrites when a member leaves.
-  Extracts the trailing digit run, plus a trailing `#` if present, from the channel name (`🚪 Code: 5260#` → `5260#`), returns
-  `{ "code": "1234", "channel": "🚪: 1234" }`. Responses:
+  looks it up, then lists the guild's channels with the bot token and finds
+  the one that grants View Channel to the stored user ID via a member
+  overwrite (same rule as sign-in). The guild listing includes private
+  channels and categories the bot has not been added to, so the bot needs no
+  per-channel access, and a renamed or recreated channel is found again
+  automatically. Extracts the trailing digit run, plus a trailing `#` if
+  present, from the name (`🚪 Code: 5260#` → `5260#`) and returns
+  `{ "code": "5260#", "channel": "🚪 Code: 5260#" }`. Responses:
   - 401 unknown token.
-  - 403 channel missing or bot lacks access (Discord 403/404). The token
-    row is deleted. Body: `{ "error": "reauth" }`.
-  - 422 channel found but no digits in the name. Body:
-    `{ "error": "unparseable" }`.
+  - 404 `{ "error": "nochannel" }` no door channel grants this user (left the
+    server, or the channel is mid-rotation). Token kept; the watch shows its
+    cached code.
+  - 409 `{ "error": "multiple" }` more than one matching channel. Token kept.
+  - 422 `{ "error": "unparseable" }` channel found but no digits in the name.
   - 502 Discord unreachable or 5xx.
 - `POST /auth/revoke` — requires the bearer token; deletes the row.
 
@@ -134,7 +137,7 @@ with a digits-only charset for the big font).
 | --- | --- | --- |
 | Discord down | 502 | cached code, "cached" label |
 | Channel renamed without digits | 422 | "Code unreadable" + cached |
-| User left server / bot lost access | 403, row deleted (overwrite re-check or Discord 403/404) | "Sign in again in settings" |
+| User left server / channel reassigned | 404 nochannel, token kept | cached code, "cached" label |
 | Multiple matching channels at sign-in | error page, no token | n/a |
 | Phone not connected | n/a | cached code, "cached" label |
 | No token yet | n/a | "Set up in phone app settings" |
