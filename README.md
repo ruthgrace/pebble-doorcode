@@ -18,12 +18,18 @@ Requires [pebble-tool](https://developer.repebble.com/sdk/) with the Alloy SDK.
 ```bash
 cd watchapp
 # BASE_URL in src/embeddedjs/config.js and src/pkjs/index.js points at the author's service; change it if you self-host
-pebble package install @moddable/pebbleproxy
 pebble build
 pebble install --phone YOUR_PHONE_IP
 ```
 
-Then on the watch: Settings > Quick Launch > pick a button > Door Code.
+`pebble install --phone` requires Developer Connection to be enabled in the
+Pebble phone app, with the phone and computer on the same network.
+
+## Using it
+
+In the Pebble phone app, open the Door Code app's settings (the gear) to
+"Sign in with Discord" or "Sign out of this watch". Then on the watch, go to
+Settings > Quick Launch and assign Door Code to a long-press.
 
 ## Tests
 
@@ -34,6 +40,6 @@ Then on the watch: Settings > Quick Launch > pick a button > Door Code.
 
 ## Security notes
 
-The watch stores a per-user random token and the last code. The service
+The token (a per-user random secret) is stored on the watch and also in the Pebble phone app's storage for the watchapp. The watch also stores the last code. The service
 stores only a hash of the token and the ID of the user's channel. Nothing
 stores the code server-side. All traffic is HTTPS.
