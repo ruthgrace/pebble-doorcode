@@ -94,10 +94,10 @@ test("channelGrantsUser is false with no overwrites", () => {
   assert.equal(channelGrantsUser({ name: "🚪: 1" }, "u1"), false);
 });
 
-test("extractCode keeps a trailing # or * after the digits", () => {
+test("extractCode keeps a trailing # after the digits", () => {
   assert.equal(extractCode("🚪 Code: 5260#"), "5260#");
   assert.equal(extractCode("🚪 Code: 5260# "), "5260#");
-  assert.equal(extractCode("🚪 Code: 5260*#"), "5260*#");
+  assert.equal(extractCode("🚪 Code: 5260*"), null);
   assert.equal(extractCode("🚪 Code: 5260"), "5260");
 });
 

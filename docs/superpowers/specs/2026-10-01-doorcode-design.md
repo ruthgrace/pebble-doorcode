@@ -63,7 +63,7 @@ Endpoints:
   The service also re-checks that the channel still grants View Channel to the
   stored user ID via a member overwrite; if not, the row is deleted and 403
   reauth is returned, because Discord keeps overwrites when a member leaves.
-  Extracts the trailing digit run, plus any `#` or `*` keypad suffix, from the channel name (`🚪 Code: 5260#` → `5260#`), returns
+  Extracts the trailing digit run, plus a trailing `#` if present, from the channel name (`🚪 Code: 5260#` → `5260#`), returns
   `{ "code": "1234", "channel": "🚪: 1234" }`. Responses:
   - 401 unknown token.
   - 403 channel missing or bot lacks access (Discord 403/404). The token
