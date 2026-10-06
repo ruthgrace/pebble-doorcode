@@ -26,7 +26,7 @@
 
 ## Review Focus
 
-1. A code of 6 or more digits is wider than the 200 px screen at 64 px; it must fall back to the 40 px font rather than clip. (Task 4, verified in the emulator with a fake code.)
+1. A code of 7 or more digits is wider than the 200 px screen at 64 px; it must fall back to the 40 px font rather than clip. (Task 4, verified in the emulator with a fake code.)
 2. A 401 from the service (token revoked) must be treated like 403: clear the token and show "Sign in again in settings", not "cached". (Task 2)
 3. A fetch that rejects (network error, timeout) with no cached code must show "no code yet" and dashes, never a blank screen or a crash. (Task 2 and Task 3)
 4. `fetchedAt` stored as a string must round-trip to a weekday label without producing "Invalid Date". (Task 3)
@@ -565,7 +565,7 @@ Expected: the emulator shows `----` in large digits and "Set up in phone app set
 Temporarily add this line right after the three `localStorage.getItem` lines in `main.js`:
 
 ```js
-cachedCode = "123456"; fetchedAt = String(Date.now() - 2 * 86400000); token = null;
+cachedCode = "1234567"; fetchedAt = String(Date.now() - 2 * 86400000); token = null;
 ```
 
 and this line right after the initial `render(token ? ... : { kind: "notoken" });` call (the notoken view always shows `----`, so the stale view is needed to draw the cached code):
@@ -574,7 +574,7 @@ and this line right after the initial `render(token ? ... : { kind: "notoken" })
 render({ kind: "stale" });
 ```
 
-Rebuild and install. Expected: `123456` drawn in the 40 px font (it is wider than 184 px at 64 px) and the status line reads "cached, from <weekday>" (the weekday two days ago). Change `"123456"` to `"1234"` and rebuild: it is now drawn in the 64 px font. Then **remove both stub lines** before continuing.
+Rebuild and install. Expected: `1234567` drawn in the 40 px font (7 digits are wider than 184 px at 64 px; `123456` still fits) and the status line reads "cached, from <weekday>" (the weekday two days ago). Change `"1234567"` to `"1234"` and rebuild: it is now drawn in the 64 px font. Then **remove both stub lines** before continuing.
 
 - [ ] **Step 6: Run the pure tests once more and commit**
 
