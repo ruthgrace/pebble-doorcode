@@ -55,3 +55,13 @@ test("bigText prefers the fresh code, then the cache, then dashes", () => {
   assert.equal(bigText({ kind: "notoken" }, "9999"), "----");
   assert.equal(bigText({ kind: "reauth" }, "9999"), "----");
 });
+
+test("stale 6.5 days old still names the weekday", () => {
+  const t = THU - 6.5 * 86400_000;
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(t).getDay()];
+  assert.equal(statusLine({ kind: "stale" }, String(t), THU), `cached, from ${day}`);
+});
+
+test("stale 7.5 days old says over a week old", () => {
+  assert.equal(statusLine({ kind: "stale" }, String(THU - 7.5 * 86400_000), THU), "cached, over a week old");
+});

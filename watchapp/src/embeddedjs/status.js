@@ -11,7 +11,7 @@ function cachedLabel(fetchedAt, now) {
     then.getMonth() === today.getMonth() &&
     then.getDate() === today.getDate();
   if (sameDay) return "cached, from today";
-  if (now - t > 6 * DAY_MS) return "cached, over a week old";
+  if (now - t > 7 * DAY_MS) return "cached, over a week old";
   return `cached, from ${DAYS[then.getDay()]}`;
 }
 
