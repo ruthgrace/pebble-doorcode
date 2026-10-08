@@ -109,6 +109,7 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
     if (route === "GET /auth/start") {
       const noStore = { "Cache-Control": "no-store" };
       const startUrl = `${baseUrl}/auth/start`;
+      const host = baseUrl.replace(/^https?:\/\//, "");
       const signOut = `<a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>`;
       if (looksLikeInAppBrowser(req, url)) {
         return sendHtml(res, 200, page("Door Code",
