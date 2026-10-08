@@ -88,19 +88,18 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
       const host = baseUrl.replace(/^https?:\/\//, "");
       return sendHtml(res, 200, page("Door Code",
         `<h1>Door Code setup</h1>
-<p>Setting up takes two steps. Discord's sign-in does not work inside the Pebble app, so step 1 happens in your phone's browser.</p>
-<h2 style="margin-bottom:.25rem">Step 1: sign in with Discord in your browser</h2>
-<p>Open Chrome or Safari and go to:<br><b style="font-size:1.1rem;user-select:all">${host}/auth/start</b><br>
-Tap <b>Sign in with Discord</b> and approve. You will get a six-character code.</p>
-<h2 style="margin-bottom:.25rem">Step 2: enter the code here</h2>
+<p>Two steps, once only. Discord's sign-in does not work inside the Pebble app, so step 1 happens in your phone's browser and step 2 happens in the Pebble app.</p>
+<h2 style="margin-bottom:.25rem">Step 1: in Chrome or Safari</h2>
+<p>Go to <b style="user-select:all">${host}/auth/start</b> (this page) and tap:</p>
+<a class="btn" href="/auth/discord">Sign in with Discord</a>
+<p>Approve, and you will get a six-character code.</p>
+<h2 style="margin-bottom:.25rem">Step 2: in the Pebble app</h2>
+<p>Open the Door Code app's settings (gear icon) and enter the code:</p>
 <form id="pair"><input id="code" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC123" style="font-size:1.5rem;letter-spacing:.2em;width:100%;padding:.75rem;box-sizing:border-box;text-align:center">
 <button class="btn" type="submit" style="width:100%;border:0;font-size:1rem">Pair this watch</button></form>
 <p id="msg"></p>
-<p style="margin-top:2rem;color:#666;font-size:.9rem">You only do this once. The watch keeps working through weekly code changes.</p>
-<details><summary style="color:#666">Other options</summary>
-<a class="btn secondary" href="/auth/discord">Try signing in here anyway</a>
+<p style="margin-top:2rem;color:#666;font-size:.9rem">After pairing, the watch keeps working through weekly code changes.</p>
 <a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>
-</details>
 <script>
 document.getElementById("pair").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -119,7 +118,7 @@ document.getElementById("pair").addEventListener("submit", async (e) => {
     msg.textContent = "Could not reach the service. Check your connection.";
   }
 });
-</script>`));
+</script>`), { "Cache-Control": "no-store" });
     }
 
     if (route === "GET /auth/discord") {
