@@ -70,12 +70,28 @@ function cookieFrom(res) {
   return sc.split(";")[0];
 }
 
-test("GET /auth/start serves a landing page with sign in and sign out links", async () => {
-  const res = await get("/auth/start");
+test("GET /auth/start in a normal browser offers the Discord sign-in", async () => {
+  const res = await get("/auth/start", { "user-agent": "Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile Safari/537.36" });
   assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
   const html = await res.text();
   assert.match(html, /href="\/auth\/discord"/);
+  assert.doesNotMatch(html, /id="pair"/);
+});
+
+test("GET /auth/start inside the Pebble app shows the link-out, the pairing form, and sign out", async () => {
+  const res = await get("/auth/start", { "user-agent": "Mozilla/5.0 (Linux; Android 17; Pixel 8; wv) AppleWebKit/537.36 Chrome/154 Mobile Safari/537.36" });
+  const html = await res.text();
+  assert.match(html, /id="pair"/);
+  assert.match(html, /\/auth\/pair/);
+  assert.match(html, /href="https:\/\/dc\.test\/auth\/start" target="_blank"/);
   assert.match(html, /pebblejs:\/\/close#%7B%22signout%22%3Atrue%7D/);
+  assert.doesNotMatch(html, /href="\/auth\/discord"/);
+});
+
+test("GET /auth/start?mode=app forces the in-app page; ?mode=browser forces the browser page", async () => {
+  assert.match(await (await get("/auth/start?mode=app")).text(), /id="pair"/);
+  assert.match(await (await get("/auth/start?mode=browser", { "user-agent": "x wv x" })).text(), /href="\/auth\/discord"/);
 });
 
 test("GET /auth/discord sets a state cookie and redirects to Discord with that state", async () => {
@@ -289,13 +305,6 @@ test("POST /auth/pair with a wrong code, bad JSON, or no body is 404", async () 
   assert.equal(bad.status, 404);
   const empty = await fetch(base + "/auth/pair", { method: "POST" });
   assert.equal(empty.status, 404);
-});
-
-test("GET /auth/start includes the pairing form and the sign-in link", async () => {
-  const html = await (await get("/auth/start")).text();
-  assert.match(html, /id="pair"/);
-  assert.match(html, /\/auth\/pair/);
-  assert.match(html, /href="\/auth\/discord"/);
 });
 
 test("POST /auth/revoke deletes the token", async () => {

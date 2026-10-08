@@ -13,9 +13,31 @@ function sendHtml(res, status, html, extraHeaders = {}) {
 }
 
 function page(title, body) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
-<style>body{font-family:system-ui,sans-serif;margin:2rem;line-height:1.5}a.btn{display:block;margin:1rem 0;padding:1rem;background:#5865F2;color:#fff;text-decoration:none;border-radius:8px;text-align:center}a.btn.secondary{background:#444}</style>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${title}</title>
+<style>
+:root{--bg:#fff;--fg:#111;--muted:#555;--accent:#5865F2;--accent-fg:#fff;--secondary:#e6e6e6;--secondary-fg:#111;--border:#bbb}
+@media (prefers-color-scheme: dark){:root{--bg:#1e1f22;--fg:#f2f3f5;--muted:#b5bac1;--secondary:#3a3c42;--secondary-fg:#f2f3f5;--border:#777}}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:system-ui,sans-serif;margin:0;padding:1.25rem 1rem 2rem;line-height:1.5;font-size:17px}
+h1{font-size:1.6rem;margin:.25rem 0 .75rem}h2{font-size:1.15rem;margin:1.5rem 0 .5rem}
+p{margin:.5rem 0}.muted{color:var(--muted);font-size:.95rem}
+a.btn,button.btn{display:block;width:100%;box-sizing:border-box;margin:.75rem 0;padding:.9rem;background:var(--accent);color:var(--accent-fg);text-decoration:none;border-radius:10px;text-align:center;font-size:1.05rem;font-weight:600;border:0}
+a.btn.secondary,button.btn.secondary{background:var(--secondary);color:var(--secondary-fg)}
+.link{display:block;margin:.5rem 0;padding:.9rem;border:1px solid var(--border);border-radius:10px;word-break:break-all;color:var(--accent);font-weight:600;text-decoration:underline}
+input.code{font-size:1.6rem;letter-spacing:.25em;width:100%;padding:.75rem;box-sizing:border-box;text-align:center;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--fg)}
+.bigcode{font-size:2.6rem;letter-spacing:.3em;text-align:center;font-family:ui-monospace,monospace;margin:1rem 0}
+</style>
 </head><body>${body}</body></html>`;
+}
+
+function looksLikeInAppBrowser(req, url) {
+  const mode = url.searchParams.get("mode");
+  if (mode === "app") return true;
+  if (mode === "browser") return false;
+  const ua = req.headers["user-agent"] ?? "";
+  if (/\bwv\b/.test(ua)) return true;                 // Android WebView
+  if (/iPhone|iPad/.test(ua) && !/Safari\//.test(ua)) return true; // iOS WKWebView
+  return false;
 }
 
 function parseCookies(req) {
@@ -85,40 +107,57 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
     const route = `${req.method} ${url.pathname}`;
 
     if (route === "GET /auth/start") {
-      const host = baseUrl.replace(/^https?:\/\//, "");
-      return sendHtml(res, 200, page("Door Code",
-        `<h1>Door Code setup</h1>
-<p>Two steps, once only. Discord's sign-in does not work inside the Pebble app, so step 1 happens in your phone's browser and step 2 happens in the Pebble app.</p>
-<h2 style="margin-bottom:.25rem">Step 1: in Chrome or Safari</h2>
-<p>Go to <b style="user-select:all">${host}/auth/start</b> (this page) and tap:</p>
-<a class="btn" href="/auth/discord">Sign in with Discord</a>
-<p>Approve, and you will get a six-character code.</p>
-<h2 style="margin-bottom:.25rem">Step 2: in the Pebble app</h2>
-<p>Open the Door Code app's settings (gear icon) and enter the code:</p>
-<form id="pair"><input id="code" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC123" style="font-size:1.5rem;letter-spacing:.2em;width:100%;padding:.75rem;box-sizing:border-box;text-align:center">
-<button class="btn" type="submit" style="width:100%;border:0;font-size:1rem">Pair this watch</button></form>
+      const noStore = { "Cache-Control": "no-store" };
+      const startUrl = `${baseUrl}/auth/start`;
+      const signOut = `<a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>`;
+      if (looksLikeInAppBrowser(req, url)) {
+        return sendHtml(res, 200, page("Door Code",
+          `<h1>Door Code setup</h1>
+<p>Two steps, once only.</p>
+<h2>Step 1: sign in with Discord in your browser</h2>
+<p>Discord's sign-in does not work inside the Pebble app, so tap this link to open it in Chrome or Safari:</p>
+<a class="link" id="openlink" href="${startUrl}" target="_blank" rel="noopener">${startUrl}</a>
+<button class="btn secondary" type="button" id="copy">Copy link</button>
+<p class="muted">If the link opens inside this app instead, copy it and paste it into your browser. After you sign in, the browser shows a six-character code.</p>
+<h2>Step 2: enter the code here</h2>
+<form id="pair"><input class="code" id="code" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC123">
+<button class="btn" type="submit">Pair this watch</button></form>
 <p id="msg"></p>
-<p style="margin-top:2rem;color:#666;font-size:.9rem">After pairing, the watch keeps working through weekly code changes.</p>
-<a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>
+<p class="muted">After pairing, the watch keeps working through weekly code changes.</p>
+${signOut}
 <script>
+document.getElementById("copy").addEventListener("click", async () => {
+  const b = document.getElementById("copy");
+  try { await navigator.clipboard.writeText(${JSON.stringify(startUrl)}); b.textContent = "Copied"; }
+  catch (e) { b.textContent = "Long-press the link to copy it"; }
+});
 document.getElementById("pair").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("msg");
+  const typed = document.getElementById("code").value.trim();
+  if (!typed) { msg.textContent = "Type the six-character code from your browser first."; return; }
   msg.textContent = "Checking...";
   try {
-    const r = await fetch("/auth/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: document.getElementById("code").value }) });
+    const r = await fetch("/auth/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: typed }) });
     const j = await r.json();
     if (r.ok && j.token) {
       msg.textContent = "Paired. Returning to the Pebble app.";
       location.href = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ token: j.token }));
     } else {
-      msg.textContent = r.status === 429 ? "Too many attempts, wait a minute." : "That code is not valid or has expired. Sign in again to get a new one.";
+      msg.textContent = r.status === 429 ? "Too many attempts, wait a minute." : "That code is not valid or has expired. Sign in again in your browser to get a new one.";
     }
   } catch (err) {
     msg.textContent = "Could not reach the service. Check your connection.";
   }
 });
-</script>`), { "Cache-Control": "no-store" });
+</script>`), noStore);
+      }
+      return sendHtml(res, 200, page("Door Code",
+        `<h1>Door Code</h1>
+<p>Sign in with Discord to get a pairing code for your Pebble.</p>
+<a class="btn" href="/auth/discord">Sign in with Discord</a>
+<p class="muted">After signing in you will see a six-character code. Then open the Pebble app on your phone, go to the Door Code app's settings, and enter it there.</p>
+<p class="muted"><a href="/auth/start?mode=app">I am inside the Pebble app</a></p>`), noStore);
     }
 
     if (route === "GET /auth/discord") {
@@ -166,7 +205,7 @@ document.getElementById("pair").addEventListener("submit", async (e) => {
       return sendHtml(res, 200, page("Signed in",
         `<h1>Signed in</h1>
 <p>Your pairing code (valid for 10 minutes):</p>
-<p style="font-size:2.5rem;letter-spacing:.3em;text-align:center;font-family:monospace"><b>${pairCode}</b></p>
+<p class="bigcode"><b>${pairCode}</b></p>
 <p>Open the Pebble app on your phone, go to the Door Code app's settings, and enter this code.</p>
 <p>If you are reading this inside the Pebble app already, tap Continue.</p>
 <a class="btn" href="${href}">Continue</a>`),
