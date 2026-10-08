@@ -9,9 +9,16 @@ const display = createDisplay();
 let token = localStorage.getItem("token");
 let cachedCode = localStorage.getItem("code");
 let fetchedAt = localStorage.getItem("fetchedAt");
+let lastError = null;
 
 function render(view) {
-  display.draw(bigText(view, cachedCode), statusLine(view, fetchedAt, Date.now()));
+  let status = statusLine(view, fetchedAt, Date.now());
+  // Diagnostic detail when there is nothing cached to show: what failed and
+  // whether the watch currently sees the phone's JS side.
+  if (view.kind === "stale" && !cachedCode && lastError) {
+    status = `${lastError} (phone ${watch.connected.pebblekit ? "linked" : "not linked"})`;
+  }
+  display.draw(bigText(view, cachedCode), status);
 }
 
 function withTimeout(promise, ms) {
@@ -37,6 +44,7 @@ async function fetchCode(t) {
     );
   } catch (e) {
     console.log(`fetch failed: ${e}`);
+    lastError = String(e && e.message ? e.message : e).slice(0, 40);
     return { error: true };
   }
 }
@@ -53,7 +61,10 @@ async function refresh() {
   try {
     const t = token;
     render({ kind: "loading" });
-    const view = interpret(await fetchCode(t));
+    lastError = null;
+  const result = await fetchCode(t);
+  if (!result.error && result.status !== 200) lastError = `HTTP ${result.status}`;
+  const view = interpret(result);
     // The token changed (new TOKEN or SIGNOUT) while fetching: discard this result.
     if (token !== t) {
       if (token) refreshPending = true;
