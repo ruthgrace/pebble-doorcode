@@ -1,5 +1,6 @@
 import { extractCode, findUserChannel } from "./match.js";
 import { newToken, hashToken } from "./token.js";
+import { randomBytes } from "node:crypto";
 
 function sendJson(res, status, body, extraHeaders = {}) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...extraHeaders });
@@ -38,8 +39,46 @@ function closeUrl(payload) {
   return "pebblejs://close#" + encodeURIComponent(JSON.stringify(payload));
 }
 
-export function createApp({ baseUrl, guildId, store, discord }) {
+const PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PAIR_TTL_MS = 10 * 60 * 1000;
+
+function newPairCode() {
+  const bytes = randomBytes(6);
+  let out = "";
+  for (const b of bytes) out += PAIR_ALPHABET[b % PAIR_ALPHABET.length];
+  return out;
+}
+
+function normalizePairCode(input) {
+  return String(input ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function readJsonBody(req, limit = 4096) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > limit) { resolve(null); req.destroy(); }
+    });
+    req.on("end", () => {
+      try { resolve(JSON.parse(data || "{}")); } catch { resolve(null); }
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
+export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_TTL_MS, now = Date.now }) {
   const redirectUri = `${baseUrl}/auth/callback`;
+  // Pending pairing codes: code -> { token, expires }. In memory on purpose:
+  // they live ten minutes and a restart simply asks the user to sign in again.
+  const pending = new Map();
+  let failedPairAttempts = 0;
+  let failedPairWindowStart = 0;
+
+  function sweepPending() {
+    const t = now();
+    for (const [code, entry] of pending) if (entry.expires <= t) pending.delete(code);
+  }
 
   async function handle(req, res) {
     const url = new URL(req.url, "http://localhost");
@@ -48,9 +87,31 @@ export function createApp({ baseUrl, guildId, store, discord }) {
     if (route === "GET /auth/start") {
       return sendHtml(res, 200, page("Door Code",
         `<h1>Door Code</h1>
-<p>Sign in with Discord so your watch can read your door code.</p>
-<a class="btn" href="/auth/discord">Sign in with Discord</a>
-<a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>`));
+<p>In your phone's normal browser, open <b>${baseUrl.replace(/^https?:\/\//, "")}/auth/start</b>, sign in with Discord, and you'll get a six-character code. Enter it here.</p>
+<form id="pair"><input id="code" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC123" style="font-size:1.5rem;letter-spacing:.2em;width:100%;padding:.75rem;box-sizing:border-box;text-align:center">
+<button class="btn" type="submit" style="width:100%;border:0;font-size:1rem">Pair this watch</button></form>
+<p id="msg"></p>
+<a class="btn" href="/auth/discord">Sign in with Discord here instead</a>
+<a class="btn secondary" href="${closeUrl({ signout: true })}">Sign out of this watch</a>
+<script>
+document.getElementById("pair").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("msg");
+  msg.textContent = "Checking...";
+  try {
+    const r = await fetch("/auth/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: document.getElementById("code").value }) });
+    const j = await r.json();
+    if (r.ok && j.token) {
+      msg.textContent = "Paired. Returning to the Pebble app.";
+      location.href = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ token: j.token }));
+    } else {
+      msg.textContent = r.status === 429 ? "Too many attempts, wait a minute." : "That code is not valid or has expired. Sign in again to get a new one.";
+    }
+  } catch (err) {
+    msg.textContent = "Could not reach the service. Check your connection.";
+  }
+});
+</script>`));
     }
 
     if (route === "GET /auth/discord") {
@@ -90,10 +151,36 @@ export function createApp({ baseUrl, guildId, store, discord }) {
       }
       const token = newToken();
       store.put({ tokenHash: hashToken(token), userId: me.id, channelId: match.channel.id });
+      sweepPending();
+      let pairCode = newPairCode();
+      while (pending.has(pairCode)) pairCode = newPairCode();
+      pending.set(pairCode, { token, expires: now() + pairTtlMs });
       const href = closeUrl({ token });
       return sendHtml(res, 200, page("Signed in",
-        `<h1>Signed in</h1><p>Returning to the Pebble app.</p><a class="btn" href="${href}">Continue</a><script>location.href=${JSON.stringify(href)};</script>`),
+        `<h1>Signed in</h1>
+<p>Your pairing code (valid for 10 minutes):</p>
+<p style="font-size:2.5rem;letter-spacing:.3em;text-align:center;font-family:monospace"><b>${pairCode}</b></p>
+<p>Open the Pebble app on your phone, go to the Door Code app's settings, and enter this code.</p>
+<p>If you are reading this inside the Pebble app already, tap Continue.</p>
+<a class="btn" href="${href}">Continue</a>`),
         { "Set-Cookie": CLEAR_STATE, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+    }
+
+    if (route === "POST /auth/pair") {
+      const noStore = { "Cache-Control": "no-store" };
+      const t = now();
+      if (t - failedPairWindowStart > 60_000) { failedPairWindowStart = t; failedPairAttempts = 0; }
+      if (failedPairAttempts >= 20) return sendJson(res, 429, { error: "slow down" }, noStore);
+      const body = await readJsonBody(req);
+      const code = normalizePairCode(body && body.code);
+      sweepPending();
+      const entry = code ? pending.get(code) : undefined;
+      if (!entry) {
+        failedPairAttempts++;
+        return sendJson(res, 404, { error: "badcode" }, noStore);
+      }
+      pending.delete(code);
+      return sendJson(res, 200, { token: entry.token }, noStore);
     }
 
     if (route === "GET /code") {

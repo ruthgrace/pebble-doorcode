@@ -86,6 +86,27 @@ sudo journalctl -u doorcode -n 50 --no-pager
 
 The last command should show recent logs; look for the line `doorcode service listening on 127.0.0.1:8787`.
 
+## How sign-in works
+
+Discord's login page does not work reliably inside the Pebble phone app's
+embedded browser, so sign-in happens in a normal browser:
+
+1. The user opens `https://YOUR_DOMAIN/auth/start` in their phone's browser
+   (or any browser), taps **Sign in with Discord**, and authorizes.
+2. The final page shows a six-character pairing code, valid for ten minutes.
+3. In the Pebble phone app, the Door Code app's settings page asks for that
+   code. Entering it hands the token to the watch.
+
+Pairing codes are kept in memory; a service restart just means signing in
+again. Twenty wrong codes within a minute pause pairing for the rest of that
+minute.
+
+## Logs
+
+The service appends its output to `/var/lib/doorcode/doorcode.log` (set in the
+systemd unit), so `sudo tail -50 /var/lib/doorcode/doorcode.log` shows what
+happened even on hosts where journald is not capturing service output.
+
 ## Verify
 
 Open `https://moxcode.ruthgracewong.com/auth/start` in a browser. Signing in should end on
@@ -96,7 +117,8 @@ does nothing, which is expected; it works inside the Pebble phone app.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /auth/start` | Settings landing page used by the watchapp |
+| `GET /auth/start` | Settings landing page used by the watchapp: enter a pairing code, or sign in here |
+| `POST /auth/pair` | `{ "code": "ABC123" }` exchanges a pairing code (10 min, single use) for `{ "token": ... }` |
 | `GET /auth/discord` | Begins Discord OAuth |
 | `GET /auth/callback` | OAuth return; issues a token |
 | `GET /code` | `Authorization: Bearer <token>` returns `{ "code": "1234", "channel": "🚪: 1234" }` |
@@ -116,7 +138,9 @@ npm test
 ## Updating
 
 ```bash
-cd /opt/doorcode && sudo -u doorcode git pull && sudo systemctl restart doorcode
+cd /opt/doorcode && sudo -u doorcode git pull
+sudo cp /opt/doorcode/service/deploy/doorcode.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl restart doorcode
 ```
 
 Running git as the owning user avoids the dubious-ownership error.

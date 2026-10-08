@@ -27,9 +27,13 @@ Pebble phone app, with the phone and computer on the same network.
 
 ## Using it
 
-In the Pebble phone app, open the Door Code app's settings (the gear) to
-"Sign in with Discord" or "Sign out of this watch". Then on the watch, go to
-Settings > Quick Launch and assign Door Code to a long-press.
+1. In your phone's browser, open `https://moxcode.ruthgracewong.com/auth/start`,
+   tap **Sign in with Discord**, and authorize. You get a six-character
+   pairing code.
+2. In the Pebble phone app, open the Door Code app's settings (gear icon),
+   enter the code, and tap **Pair this watch**. The same page has
+   **Sign out of this watch**.
+3. On the watch: Settings > Quick Launch > pick a button > Door Code.
 
 ## Tests
 

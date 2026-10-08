@@ -249,6 +249,55 @@ test("GET /code is 502 when the Discord listing fails", async () => {
   assert.ok(store.get(hashToken(token)), "token kept on 502");
 });
 
+function pairCodeFrom(html) {
+  const m = /<b>([A-Z2-9]{6})<\/b>/.exec(html);
+  return m ? m[1] : null;
+}
+
+test("successful callback shows a six-character pairing code", async () => {
+  const html = await (await signIn()).text();
+  assert.ok(pairCodeFrom(html), "pairing code present");
+  assert.match(html, /valid for 10 minutes/);
+});
+
+test("POST /auth/pair exchanges a pairing code for the token, once", async () => {
+  const html = await (await signIn()).text();
+  const code = pairCodeFrom(html);
+  const expectedToken = JSON.parse(decodeURIComponent(/pebblejs:\/\/close#([A-Za-z0-9%._-]+)/.exec(html)[1])).token;
+  const res = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await res.json(), { token: expectedToken });
+  const codeRes = await get("/code", { authorization: `Bearer ${expectedToken}` });
+  assert.equal(codeRes.status, 200);
+  const again = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
+  assert.equal(again.status, 404);
+});
+
+test("POST /auth/pair accepts lowercase and spaces in the code", async () => {
+  const code = pairCodeFrom(await (await signIn()).text());
+  const typed = code.toLowerCase().split("").join(" ");
+  const res = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: typed }) });
+  assert.equal(res.status, 200);
+});
+
+test("POST /auth/pair with a wrong code, bad JSON, or no body is 404", async () => {
+  const wrong = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "ZZZZZZ" }) });
+  assert.equal(wrong.status, 404);
+  assert.deepEqual(await wrong.json(), { error: "badcode" });
+  const bad = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: "{nope" });
+  assert.equal(bad.status, 404);
+  const empty = await fetch(base + "/auth/pair", { method: "POST" });
+  assert.equal(empty.status, 404);
+});
+
+test("GET /auth/start includes the pairing form and the sign-in link", async () => {
+  const html = await (await get("/auth/start")).text();
+  assert.match(html, /id="pair"/);
+  assert.match(html, /\/auth\/pair/);
+  assert.match(html, /href="\/auth\/discord"/);
+});
+
 test("POST /auth/revoke deletes the token", async () => {
   const token = await tokenFromSignIn();
   const res = await fetch(base + "/auth/revoke", { method: "POST", headers: { authorization: `Bearer ${token}` } });

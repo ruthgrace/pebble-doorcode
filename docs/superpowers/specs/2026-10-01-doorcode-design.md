@@ -58,6 +58,11 @@ Endpoints:
   Before issuing a token the service fetches the matched channel with the bot
   token; a 403/404 shows "The bot can't see your door channel, contact the
   admin."
+- `GET /auth/start` also carries a pairing form, and the callback's success
+  page shows a six-character single-use pairing code (10 min TTL, in memory)
+  because Discord's login does not work inside the Pebble app's embedded
+  browser. `POST /auth/pair` with `{code}` returns `{token}`; the settings
+  page then hands the token to the watch via `pebblejs://close`.
 - `GET /code` — requires `Authorization: Bearer <token>`. Hashes the token,
   looks it up, then lists the guild's channels with the bot token and finds
   the one that grants View Channel to the stored user ID via a member
