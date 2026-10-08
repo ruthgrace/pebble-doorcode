@@ -84,7 +84,9 @@ test("GET /auth/start inside the Pebble app shows the link-out, the pairing form
   const html = await res.text();
   assert.match(html, /id="pair"/);
   assert.match(html, /\/auth\/pair/);
-  assert.match(html, /href="https:\/\/dc\.test\/auth\/start" target="_blank"/);
+  assert.match(html, /dc\.test/);
+  assert.match(html, /id="copy"/);
+  assert.doesNotMatch(html, /intent:\/\//);
   assert.match(html, /pebblejs:\/\/close#%7B%22signout%22%3Atrue%7D/);
   assert.doesNotMatch(html, /href="\/auth\/discord"/);
 });
@@ -314,6 +316,12 @@ test("POST /auth/revoke deletes the token", async () => {
   assert.equal(store.get(hashToken(token)), undefined);
   const again = await fetch(base + "/auth/revoke", { method: "POST", headers: { authorization: `Bearer ${token}` } });
   assert.equal(again.status, 204);
+});
+
+test("GET / redirects to the settings page", async () => {
+  const res = await get("/");
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("location"), "/auth/start");
 });
 
 test("unknown routes are 404 json", async () => {

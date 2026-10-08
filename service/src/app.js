@@ -106,6 +106,10 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
     const url = new URL(req.url, "http://localhost");
     const route = `${req.method} ${url.pathname}`;
 
+    if (route === "GET /" ) {
+      return sendHtml(res, 302, "", { Location: "/auth/start" });
+    }
+
     if (route === "GET /auth/start") {
       const noStore = { "Cache-Control": "no-store" };
       const startUrl = `${baseUrl}/auth/start`;
@@ -116,11 +120,10 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
           `<h1>Door Code setup</h1>
 <p>Two steps, once only.</p>
 <h2>Step 1: sign in with Discord in your browser</h2>
-<p>Discord's sign-in does not work inside the Pebble app, so tap this link to open it in Chrome or Safari:</p>
-<a class="btn" id="openlink" href="${startUrl}" target="_blank" rel="noopener">Open in my browser</a>
-<a class="link" href="${startUrl}" target="_blank" rel="noopener">${startUrl}</a>
+<p>Discord's sign-in does not work inside the Pebble app. Open Chrome or Safari and go to this address (the Copy button puts it on your clipboard):</p>
+<p class="bigcode" style="font-size:1.35rem;letter-spacing:0;user-select:all">${host}</p>
 <button class="btn secondary" type="button" id="copy">Copy link</button>
-<p class="muted">If the link opens inside this app instead, copy it and paste it into your browser. After you sign in, the browser shows a six-character code.</p>
+<p class="muted">Tap Sign in with Discord there and approve. The browser then shows a six-character code.</p>
 <h2>Step 2: enter the code here</h2>
 <form id="pair"><input class="code" id="code" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC123">
 <button class="btn" type="submit">Pair this watch</button></form>
@@ -128,21 +131,10 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
 <p class="muted">After pairing, the watch keeps working through weekly code changes.</p>
 ${signOut}
 <script>
-(function () {
-  // Ask the OS, not this in-app browser, to open the address in the default browser.
-  const ua = navigator.userAgent;
-  const a = document.getElementById("openlink");
-  const host = ${JSON.stringify(host)};
-  if (/Android/i.test(ua)) {
-    a.href = "intent://" + host + "/auth/start#Intent;scheme=https;action=android.intent.action.VIEW;end";
-  } else if (/iPhone|iPad/i.test(ua)) {
-    a.href = "x-safari-https://" + host + "/auth/start";
-  }
-})();
 document.getElementById("copy").addEventListener("click", async () => {
   const b = document.getElementById("copy");
-  try { await navigator.clipboard.writeText(${JSON.stringify(startUrl)}); b.textContent = "Copied"; }
-  catch (e) { b.textContent = "Long-press the link to copy it"; }
+  try { await navigator.clipboard.writeText(${JSON.stringify(host)}); b.textContent = "Copied"; }
+  catch (e) { b.textContent = "Long-press the address to copy it"; }
 });
 document.getElementById("pair").addEventListener("submit", async (e) => {
   e.preventDefault();
