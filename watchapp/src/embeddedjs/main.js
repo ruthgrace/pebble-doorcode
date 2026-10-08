@@ -115,12 +115,15 @@ new Message({
   },
 });
 
-// Draw immediately so the screen is never blank, then fetch once the phone proxy is up.
+// Draw immediately so the screen is never blank, then fetch right away: the
+// proxy queues the request until the phone is ready, and the 8 s timeout turns
+// a missing phone into a visible status instead of "loading..." forever.
 render(token ? { kind: "loading" } : { kind: "notoken" });
 
 if (token) {
-  if (watch.connected.pebblekit) refresh();
-  else watch.addEventListener("connected", () => { if (watch.connected.pebblekit) refresh(); });
+  refresh();
+  // If the phone link comes up later (or drops and returns), fetch again.
+  watch.addEventListener("connected", () => { if (watch.connected.pebblekit) refresh(); });
 }
 
 export {};

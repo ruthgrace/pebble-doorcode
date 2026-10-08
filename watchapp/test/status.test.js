@@ -40,7 +40,7 @@ test("stale fetched today says today", () => {
 });
 
 test("stale with no cache", () => {
-  assert.equal(statusLine({ kind: "stale" }, null, THU), "no code yet");
+  assert.equal(statusLine({ kind: "stale" }, null, THU), "Phone not reachable. Reopen app.");
 });
 
 test("stale with a garbage fetchedAt does not say Invalid Date", () => {

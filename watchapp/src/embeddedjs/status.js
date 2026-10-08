@@ -29,7 +29,7 @@ export function statusLine(view, fetchedAt, now) {
       return "Code unreadable";
     case "stale":
     default:
-      return fetchedAt ? cachedLabel(fetchedAt, now) : "no code yet";
+      return fetchedAt ? cachedLabel(fetchedAt, now) : "Phone not reachable. Reopen app.";
   }
 }
 

@@ -283,6 +283,11 @@ document.getElementById("copy").addEventListener("click", async () => {
   }
 
   return (req, res) => {
+    const started = Date.now();
+    res.on("finish", () => {
+      const path = (req.url ?? "").split("?")[0];
+      console.log(`${new Date().toISOString()} ${req.method} ${path} ${res.statusCode} ${Date.now() - started}ms`);
+    });
     handle(req, res).catch((e) => {
       console.error(e);
       if (!res.headersSent) sendJson(res, 500, { error: "internal" });
