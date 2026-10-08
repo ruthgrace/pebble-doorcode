@@ -268,7 +268,7 @@ test("GET /code is 502 when the Discord listing fails", async () => {
 });
 
 function pairCodeFrom(html) {
-  const m = /<b>([A-Z2-9]{6})<\/b>/.exec(html);
+  const m = /<b id="paircode">([A-Z2-9]{6})<\/b>/.exec(html);
   return m ? m[1] : null;
 }
 

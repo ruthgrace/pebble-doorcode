@@ -23,7 +23,7 @@ test("pairing codes expire after the TTL and the failure brake returns 429", asy
     const cookie = (start.headers.get("set-cookie") ?? "").split(";")[0];
     const st = cookie.slice("state=".length);
     const html = await (await fetch(`${base}/auth/callback?code=x&state=${st}`, { headers: { cookie } })).text();
-    const code = /<b>([A-Z2-9]{6})<\/b>/.exec(html)[1];
+    const code = /<b id="paircode">([A-Z2-9]{6})<\/b>/.exec(html)[1];
     clock += 1001;
     const expired = await fetch(base + "/auth/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
     assert.equal(expired.status, 404);

@@ -210,10 +210,17 @@ document.getElementById("pair").addEventListener("submit", async (e) => {
       return sendHtml(res, 200, page("Signed in",
         `<h1>Signed in</h1>
 <p>Your pairing code (valid for 10 minutes):</p>
-<p class="bigcode"><b>${pairCode}</b></p>
-<p>Open the Pebble app on your phone, go to the Door Code app's settings, and enter this code.</p>
-<p>If you are reading this inside the Pebble app already, tap Continue.</p>
-<a class="btn" href="${href}">Continue</a>`),
+<p class="bigcode"><b id="paircode">${pairCode}</b></p>
+<button class="btn" type="button" id="copy">Copy code</button>
+<p>Now open the Pebble app on your phone, go to the Door Code app's settings, and paste the code under Step 2.</p>
+<p class="muted" style="margin-top:2.5rem">Reading this inside the Pebble app's own settings page? <a href="${href}">Continue here instead</a>.</p>
+<script>
+document.getElementById("copy").addEventListener("click", async () => {
+  const b = document.getElementById("copy");
+  try { await navigator.clipboard.writeText(${JSON.stringify(pairCode)}); b.textContent = "Copied"; }
+  catch (e) { b.textContent = "Long-press the code to copy it"; }
+});
+</script>`),
         { "Set-Cookie": CLEAR_STATE, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
     }
 
