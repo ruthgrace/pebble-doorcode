@@ -116,7 +116,8 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
 <p>Two steps, once only.</p>
 <h2>Step 1: sign in with Discord in your browser</h2>
 <p>Discord's sign-in does not work inside the Pebble app, so tap this link to open it in Chrome or Safari:</p>
-<a class="link" id="openlink" href="${startUrl}" target="_blank" rel="noopener">${startUrl}</a>
+<a class="btn" id="openlink" href="${startUrl}" target="_blank" rel="noopener">Open in my browser</a>
+<a class="link" href="${startUrl}" target="_blank" rel="noopener">${startUrl}</a>
 <button class="btn secondary" type="button" id="copy">Copy link</button>
 <p class="muted">If the link opens inside this app instead, copy it and paste it into your browser. After you sign in, the browser shows a six-character code.</p>
 <h2>Step 2: enter the code here</h2>
@@ -126,6 +127,17 @@ export function createApp({ baseUrl, guildId, store, discord, pairTtlMs = PAIR_T
 <p class="muted">After pairing, the watch keeps working through weekly code changes.</p>
 ${signOut}
 <script>
+(function () {
+  // Ask the OS, not this in-app browser, to open the address in the default browser.
+  const ua = navigator.userAgent;
+  const a = document.getElementById("openlink");
+  const host = ${JSON.stringify(host)};
+  if (/Android/i.test(ua)) {
+    a.href = "intent://" + host + "/auth/start#Intent;scheme=https;action=android.intent.action.VIEW;end";
+  } else if (/iPhone|iPad/i.test(ua)) {
+    a.href = "x-safari-https://" + host + "/auth/start";
+  }
+})();
 document.getElementById("copy").addEventListener("click", async () => {
   const b = document.getElementById("copy");
   try { await navigator.clipboard.writeText(${JSON.stringify(startUrl)}); b.textContent = "Copied"; }
